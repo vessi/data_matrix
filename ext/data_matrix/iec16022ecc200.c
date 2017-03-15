@@ -335,106 +335,98 @@ char ecc200encode(unsigned char *t, unsigned int tl, const unsigned char *s, con
         }
          break;
       case 'e':                // EDIFACT
-         {
-            char out[4];
-            unsigned char p = 0;
-            if (enc != newenc)
-            {                   // can only be from C40/Text/X12
-               t[tp++] = 254;
-               enc = 'a';
-            }
-            while (sp < sl && tolower (encoding[sp]) == 'e' && p < 4)
-               out[p++] = s[sp++];
-            if (p < 4)
-            {
-               out[p++] = 0x1F;
-               enc = 'a';
-            }                   // termination
-            t[tp] = ((s[0] & 0x3F) << 2);
-            t[tp++] |= ((s[1] & 0x30) >> 4);
-            t[tp] = ((s[1] & 0x0F) << 4);
-            if (p == 2)
-               tp++;
-            else
-            {
-               t[tp++] |= ((s[2] & 0x3C) >> 2);
-               t[tp] = ((s[2] & 0x03) << 6);
-               t[tp++] |= (s[3] & 0x3F);
-            }
-         }
-         break;
+        {
+          char out[4];
+          unsigned char p = 0;
+          if (enc != newenc) {
+            // can only be from C40/Text/X12
+            t[tp++] = 254;
+            enc = 'a';
+          }
+          while (sp < sl && tolower (encoding[sp]) == 'e' && p < 4)
+            out[p++] = s[sp++];
+          if (p < 4) {
+            out[p++] = 0x1F;
+            enc = 'a';
+          } // termination
+          t[tp] = ((s[0] & 0x3F) << 2);
+          t[tp++] |= ((s[1] & 0x30) >> 4);
+          t[tp] = ((s[1] & 0x0F) << 4);
+          if (p == 2)
+            tp++;
+          else {
+            t[tp++] |= ((s[2] & 0x3C) >> 2);
+            t[tp] = ((s[2] & 0x03) << 6);
+            t[tp++] |= (s[3] & 0x3F);
+          }
+        }
+        break;
       case 'a':                // ASCII
-         if (enc != newenc)
-         {
-            if (enc == 'c' || enc == 't' || enc == 'x')
-               t[tp++] = 254;   // escape C40/text/X12
-            else
-               t[tp++] = 0x7C;  // escape EDIFACT
-         }
-         enc = 'a';
-         if (sl - sp >= 2 && isdigit (s[sp]) && isdigit (s[sp + 1]))
-         {
-            t[tp++] = (s[sp] - '0') * 10 + s[sp + 1] - '0' + 130;
-            sp += 2;
-         } else if (s[sp] > 127)
-         {
-            t[tp++] = 235;
-            t[tp++] = s[sp++] - 127;
-         } else
-            t[tp++] = s[sp++] + 1;
-         break;
+        if (enc != newenc) {
+          if (enc == 'c' || enc == 't' || enc == 'x')
+            t[tp++] = 254;   // escape C40/text/X12
+          else
+            t[tp++] = 0x7C;  // escape EDIFACT
+        }
+        enc = 'a';
+        if (sl - sp >= 2 && isdigit(s[sp]) && isdigit(s[sp + 1])) {
+          t[tp++] = (s[sp] - '0') * 10 + s[sp + 1] - '0' + 130;
+          sp += 2;
+        } else
+            if (s[sp] > 127) {
+              t[tp++] = 235;
+              t[tp++] = s[sp++] - 127;
+            } else
+                t[tp++] = s[sp++] + 1;
+        break;
       case 'b':                // Binary
-         {
-            int l = 0;          // how much to encode
-            if (encoding)
-            {
-               unsigned int p;
-               for (p = sp; p < sl && tolower (encoding[p]) == 'b'; p++)
-                  l++;
-            }
-            t[tp++] = 231;      // base256
-            if (l < 250)
-               t[tp++] = l;
-            else
-            {
-               t[tp++] = 249 + (l / 250);
-               t[tp++] = (l % 250);
-            }
-            while (l-- && tp < tl)
-            {
-               t[tp] = s[sp++] + (((tp + 1) * 149) % 255) + 1;  // see annex H
-               tp++;
-            }
-            enc = 'a';          // reverse to ASCII at end
-         }
-         break;
+        {
+          int l = 0;          // how much to encode
+          if (encoding) {
+            unsigned int p;
+            for (p = sp; p < sl && tolower(encoding[p]) == 'b'; p++)
+              l++;
+          }
+          t[tp++] = 231;      // base256
+          if (l < 250)
+            t[tp++] = l;
+          else {
+            t[tp++] = 249 + (l / 250);
+            t[tp++] = (l % 250);
+          }
+          while (l-- && tp < tl) {
+            t[tp] = s[sp++] + (((tp + 1) * 149) % 255) + 1;  // see annex H
+            tp++;
+          }
+          enc = 'a';          // reverse to ASCII at end
+        }
+        break;
       default:
-         free(encoding);
-         //TODO: rb_raise(rb_eArgError,  "unknown encoding attempted");
-         return 0;              // failed
-      }
-   }
-   if (lenp)
-      *lenp = tp;
-   if (tp < tl && enc != 'a')
-   {
-      if (enc == 'c' || enc == 'x' || enc == 't')
-         t[tp++] = 254;         // escape X12/C40/Text
-      else
-         t[tp++] = 0x7C;        // escape EDIFACT
-   }
-   if (tp < tl)
-      t[tp++] = 129;            // pad
-   while (tp < tl)
-   {                            // more padding
-      int v = 129 + (((tp + 1) * 149) % 253) + 1;       // see Annex H
-      if (v > 254)
-         v -= 254;
-      t[tp++] = v;
-   }
-   if (tp > tl || sp < sl)
-      return 0;                 // did not fit
-   return 1;                    // OK 
+        free(encoding);
+        //TODO: rb_raise(rb_eArgError,  "unknown encoding attempted");
+        return 0;              // failed
+    }
+  }
+  if (lenp)
+    *lenp = tp;
+  if (tp < tl && enc != 'a') {
+    if (enc == 'c' || enc == 'x' || enc == 't')
+      t[tp++] = 254;         // escape X12/C40/Text
+    else
+      t[tp++] = 0x7C;        // escape EDIFACT
+  }
+  if (tp < tl)
+    t[tp++] = 129;            // pad
+  while (tp < tl) {
+    // more padding
+    int v = 129 + (((tp + 1) * 149) % 253) + 1;       // see Annex H
+    if (v > 254)
+      v -= 254;
+    t[tp++] = v;
+  }
+  if (tp > tl || sp < sl)
+    return 0;                 // did not fit
+  return 1;                    // OK
 }
 
 // Creates a encoding list (malloc)
@@ -446,7 +438,7 @@ char ecc200encode(unsigned char *t, unsigned int tl, const unsigned char *s, con
 // 2. No unlatch to return to ASCII for last 1 or 2 encoded bytes after EDIFACT
 // 3. Final C40 or text encoding exactly in last 2 bytes can have a shift 0 to pad to make a tripple
 // Only use the encoding from an exact request if the len matches the target, otherwise free the result and try again with exact=0
-static char* encmake (const unsigned int l, const unsigned char *s, int *lenp, char exact) {
+static char* encmake(const unsigned int l, const unsigned char *s, int *lenp, char exact) {
   char *encoding = 0;
   unsigned int p = l;
   unsigned char e;
@@ -463,275 +455,254 @@ static char* encmake (const unsigned int l, const unsigned char *s, int *lenp, c
     unsigned char b = 0;
     char sub;
     int sl, tl, bl, t;
-      // consider each encoding from this point
-      // ASCII
-      sl = tl = 1;
-      if (isdigit (s[p]) && p + 1 < l && isdigit (s[p + 1]))
-         sl = 2;                // double digit
-      else if (s[p] & 0x80)
+    // consider each encoding from this point
+    // ASCII
+    sl = tl = 1;
+    if (isdigit(s[p]) && p + 1 < l && isdigit(s[p + 1]))
+      sl = 2;                // double digit
+    else
+      if (s[p] & 0x80)
          tl = 2;                // high shifted
+    bl = 0;
+    if (p + sl < l)
+      for (e = 0; e < E_MAX; e++)
+        if (enc[p + sl][e].t && ((t = enc[p + sl][e].t + switchcost[E_ASCII][e]) < bl || !bl)) {
+          bl = t;
+          b = e;
+        }
+    enc[p][E_ASCII].t = tl + bl;
+    enc[p][E_ASCII].s = sl;
+    if (bl && b == E_ASCII)
+      enc[p][b].s += enc[p + sl][b].s;
+    // C40
+    sub = tl = sl = 0;
+    do {
+      unsigned char c = s[p + sl++];
+      if (c & 0x80) {
+        // shift + upper
+        sub += 2;
+        c &= 0x7F;
+      }
+      if (c != ' ' && !isdigit (c) && !isupper (c))
+        sub++;              // shift
+      sub++;
+      while (sub >= 3) {
+        sub -= 3;
+        tl += 2;
+      }
+    } while (sub && p + sl < l);
+    if (exact && sub == 2 && p + sl == l) {
+      // special case, can encode last block with shift 0 at end (Is this valid when not end of target buffer?)
+      sub = 0;
+      tl += 2;
+    }
+    if (!sub) {
+      // can encode C40
       bl = 0;
       if (p + sl < l)
-         for (e = 0; e < E_MAX; e++)
-            if (enc[p + sl][e].t && ((t = enc[p + sl][e].t + switchcost[E_ASCII][e]) < bl || !bl))
-            {
-               bl = t;
-               b = e;
-            }
-      enc[p][E_ASCII].t = tl + bl;
-      enc[p][E_ASCII].s = sl;
-      if (bl && b == E_ASCII)
-         enc[p][b].s += enc[p + sl][b].s;
-      // C40
-      sub = tl = sl = 0;
-      do
-      {
-         unsigned char c = s[p + sl++];
-         if (c & 0x80)
-         {                      // shift + upper
-            sub += 2;
-            c &= 0x7F;
-         }
-         if (c != ' ' && !isdigit (c) && !isupper (c))
-            sub++;              // shift
-         sub++;
-         while (sub >= 3)
-         {
-            sub -= 3;
-            tl += 2;
-         }
-      } while (sub && p + sl < l);
-      if (exact && sub == 2 && p + sl == l)
-      {                         // special case, can encode last block with shift 0 at end (Is this valid when not end of target buffer?)
-         sub = 0;
-         tl += 2;
-      }
-      if (!sub)
-      {                         // can encode C40
-         bl = 0;
-         if (p + sl < l)
-            for (e = 0; e < E_MAX; e++)
-               if (enc[p + sl][e].t && ((t = enc[p + sl][e].t + switchcost[E_C40][e]) < bl || !bl))
-               {
-                  bl = t;
-                  b = e;
-               }
-         if (exact && enc[p + sl][E_ASCII].t == 1 && 1 < bl)
-         {                      // special case, switch to ASCII for last bytes
-            bl = 1;
-            b = E_ASCII;
-         }
-         enc[p][E_C40].t = tl + bl;
-         enc[p][E_C40].s = sl;
-         if (bl && b == E_C40)
-            enc[p][b].s += enc[p + sl][b].s;
-      }
-      // Text
-      sub = tl = sl = 0;
-      do
-      {
-         unsigned char c = s[p + sl++];
-         if (c & 0x80)
-         {                      // shift + upper
-            sub += 2;
-            c &= 0x7F;
-         }
-         if (c != ' ' && !isdigit (c) && !islower (c))
-            sub++;              // shift
-         sub++;
-         while (sub >= 3)
-         {
-            sub -= 3;
-            tl += 2;
-         }
-      } while (sub && p + sl < l);
-      if (exact && sub == 2 && p + sl == l)
-      {                         // special case, can encode last block with shift 0 at end (Is this valid when not end of target buffer?)
-         sub = 0;
-         tl += 2;
-      }
-      if (!sub && sl)
-      {                         // can encode Text
-         bl = 0;
-         if (p + sl < l)
-            for (e = 0; e < E_MAX; e++)
-               if (enc[p + sl][e].t && ((t = enc[p + sl][e].t + switchcost[E_TEXT][e]) < bl || !bl))
-               {
-                  bl = t;
-                  b = e;
-               }
-         if (exact && enc[p + sl][E_ASCII].t == 1 && 1 < bl)
-         {                      // special case, switch to ASCII for last bytes
-            bl = 1;
-            b = E_ASCII;
-         }
-         enc[p][E_TEXT].t = tl + bl;
-         enc[p][E_TEXT].s = sl;
-         if (bl && b == E_TEXT)
-            enc[p][b].s += enc[p + sl][b].s;
-      }
-      // X12
-      sub = tl = sl = 0;
-      do
-      {
-         unsigned char c = s[p + sl++];
-         if (c != 13 && c != '*' && c != '>' && c != ' ' && !isdigit (c) && !isupper (c))
-         {
-            sl = 0;
-            break;
-         }
-         sub++;
-         while (sub >= 3)
-         {
-            sub -= 3;
-            tl += 2;
-         }
-      } while (sub && p + sl < l);
-      if (!sub && sl)
-      {                         // can encode X12
-         bl = 0;
-         if (p + sl < l)
-            for (e = 0; e < E_MAX; e++)
-               if (enc[p + sl][e].t && ((t = enc[p + sl][e].t + switchcost[E_X12][e]) < bl || !bl))
-               {
-                  bl = t;
-                  b = e;
-               }
-         if (exact && enc[p + sl][E_ASCII].t == 1 && 1 < bl)
-         {                      // special case, switch to ASCII for last bytes
-            bl = 1;
-            b = E_ASCII;
-         }
-         enc[p][E_X12].t = tl + bl;
-         enc[p][E_X12].s = sl;
-         if (bl && b == E_X12)
-            enc[p][b].s += enc[p + sl][b].s;
-      }
-      // EDIFACT
-      sl = bl = 0;
-      if (s[p + 0] >= 32 && s[p + 0] <= 94)
-      {                         // can encode 1
-         char bs = 0;
-         if (p + 1 == l && (!bl || bl < 2))
-         {
-            bl = 2;
-            bs = 1;
-         } else
-            for (e = 0; e < E_MAX; e++)
-               if (e != E_EDIFACT && enc[p + 1][e].t && ((t = 2 + enc[p + 1][e].t + switchcost[E_ASCII][e]) < bl || !bl))       // E_ASCII as allowed for unlatch
-               {
-                  bs = 1;
-                  bl = t;
-                  b = e;
-               }
-         if (p + 1 < l && s[p + 1] >= 32 && s[p + 1] <= 94)
-         {                      // can encode 2
-            if (p + 2 == l && (!bl || bl < 2))
-            {
-               bl = 3;
-               bs = 2;
-            } else
-               for (e = 0; e < E_MAX; e++)
-                  if (e != E_EDIFACT && enc[p + 2][e].t && ((t = 3 + enc[p + 2][e].t + switchcost[E_ASCII][e]) < bl || !bl))    // E_ASCII as allowed for unlatch
-                  {
-                     bs = 2;
-                     bl = t;
-                     b = e;
-                  }
-            if (p + 2 < l && s[p + 2] >= 32 && s[p + 2] <= 94)
-            {                   // can encode 3
-               if (p + 3 == l && (!bl || bl < 3))
-               {
-                  bl = 3;
-                  bs = 3;
-               } else
-                  for (e = 0; e < E_MAX; e++)
-                     if (e != E_EDIFACT && enc[p + 3][e].t && ((t = 3 + enc[p + 3][e].t + switchcost[E_ASCII][e]) < bl || !bl)) // E_ASCII as allowed for unlatch
-                     {
-                        bs = 3;
-                        bl = t;
-                        b = e;
-                     }
-               if (p + 4 < l && s[p + 3] >= 32 && s[p + 3] <= 94)
-               {                // can encode 4
-                  if (p + 4 == l && (!bl || bl < 3))
-                  {
-                     bl = 3;
-                     bs = 4;
-                  } else
-                  {
-                     for (e = 0; e < E_MAX; e++)
-                        if (enc[p + 4][e].t && ((t = 3 + enc[p + 4][e].t + switchcost[E_EDIFACT][e]) < bl || !bl))
-                        {
-                           bs = 4;
-                           bl = t;
-                           b = e;
-                        }
-                     if (exact && enc[p + 4][E_ASCII].t && enc[p + 4][E_ASCII].t <= 2 && (t = 3 + enc[p + 4][E_ASCII].t) < bl)
-                     {          // special case, switch to ASCII for last 1 ot two bytes
-                        bs = 4;
-                        bl = t;
-                        b = E_ASCII;
-                     }
-                  }
-               }
-            }
-         }
-         enc[p][E_EDIFACT].t = bl;
-         enc[p][E_EDIFACT].s = bs;
-         if (bl && b == E_EDIFACT)
-            enc[p][b].s += enc[p + bs][b].s;
-      }
-      // Binary
-      bl = 0;
-      for (e = 0; e < E_MAX; e++)
-         if (enc[p + 1][e].t
-             && ((t = enc[p + 1][e].t + switchcost[E_BINARY][e] + ((e == E_BINARY && enc[p + 1][e].t == 249) ? 1 : 0)) < bl || !bl))
-         {
+        for (e = 0; e < E_MAX; e++)
+          if (enc[p + sl][e].t && ((t = enc[p + sl][e].t + switchcost[E_C40][e]) < bl || !bl)) {
             bl = t;
             b = e;
-         }
-      enc[p][E_BINARY].t = 1 + bl;
-      enc[p][E_BINARY].s = 1;
-      if (bl && b == E_BINARY)
-         enc[p][b].s += enc[p + 1][b].s;
-   }
-   encoding = malloc(sizeof(char)*(l + 1));
-   p = 0;
-   {
-      unsigned char cur = E_ASCII;       // starts ASCII
-      while (p < l)
-      {
-         int t,
-           m = 0;
-         unsigned char b = 0;
-         for (e = 0; e < E_MAX; e++)
-            if (enc[p][e].t && ((t = enc[p][e].t + switchcost[cur][e]) < m || t == m && e == cur || !m))
-            {
-               b = e;
-               m = t;
-            }
-         cur = b;
-         m = enc[p][b].s;
-         if (!p && lenp)
-            *lenp = enc[p][b].t;
-         while (p < l && m--)
-            encoding[p++] = encchr[b];
+          }
+        if (exact && enc[p + sl][E_ASCII].t == 1 && 1 < bl) {
+          // special case, switch to ASCII for last bytes
+          bl = 1;
+          b = E_ASCII;
+        }
+        enc[p][E_C40].t = tl + bl;
+        enc[p][E_C40].s = sl;
+        if (bl && b == E_C40)
+          enc[p][b].s += enc[p + sl][b].s;
+    }
+    // Text
+    sub = tl = sl = 0;
+    do {
+      unsigned char c = s[p + sl++];
+      if (c & 0x80) {
+        // shift + upper
+        sub += 2;
+        c &= 0x7F;
       }
-   }
-   encoding[p] = 0;
-   return encoding;
+      if (c != ' ' && !isdigit (c) && !islower (c))
+        sub++; // shift
+      sub++;
+      while (sub >= 3) {
+        sub -= 3;
+        tl += 2;
+      }
+    } while (sub && p + sl < l);
+    if (exact && sub == 2 && p + sl == l) {
+      // special case, can encode last block with shift 0 at end (Is this valid when not end of target buffer?)
+      sub = 0;
+      tl += 2;
+    }
+    if (!sub && sl) {
+      // can encode Text
+      bl = 0;
+      if (p + sl < l)
+        for (e = 0; e < E_MAX; e++)
+          if (enc[p + sl][e].t && ((t = enc[p + sl][e].t + switchcost[E_TEXT][e]) < bl || !bl)) {
+            bl = t;
+            b = e;
+          }
+      if (exact && enc[p + sl][E_ASCII].t == 1 && 1 < bl) {
+        // special case, switch to ASCII for last bytes
+        bl = 1;
+        b = E_ASCII;
+      }
+      enc[p][E_TEXT].t = tl + bl;
+      enc[p][E_TEXT].s = sl;
+      if (bl && b == E_TEXT)
+        enc[p][b].s += enc[p + sl][b].s;
+    }
+    // X12
+    sub = tl = sl = 0;
+    do {
+      unsigned char c = s[p + sl++];
+      if (c != 13 && c != '*' && c != '>' && c != ' ' && !isdigit(c) && !isupper(c)) {
+        sl = 0;
+        break;
+      }
+      sub++;
+      while (sub >= 3) {
+        sub -= 3;
+        tl += 2;
+      }
+    } while (sub && p + sl < l);
+    if (!sub && sl) {
+      // can encode X12
+      bl = 0;
+      if (p + sl < l)
+        for (e = 0; e < E_MAX; e++)
+          if (enc[p + sl][e].t && ((t = enc[p + sl][e].t + switchcost[E_X12][e]) < bl || !bl)) {
+            bl = t;
+            b = e;
+          }
+      if (exact && enc[p + sl][E_ASCII].t == 1 && 1 < bl) {
+        // special case, switch to ASCII for last bytes
+        bl = 1;
+        b = E_ASCII;
+      }
+      enc[p][E_X12].t = tl + bl;
+      enc[p][E_X12].s = sl;
+      if (bl && b == E_X12)
+        enc[p][b].s += enc[p + sl][b].s;
+    }
+    // EDIFACT
+    sl = bl = 0;
+    if (s[p + 0] >= 32 && s[p + 0] <= 94) {
+      // can encode 1
+      char bs = 0;
+      if (p + 1 == l && (!bl || bl < 2)) {
+        bl = 2;
+        bs = 1;
+      } else
+          for (e = 0; e < E_MAX; e++)
+            if (e != E_EDIFACT && enc[p + 1][e].t && ((t = 2 + enc[p + 1][e].t + switchcost[E_ASCII][e]) < bl || !bl)) {
+              // E_ASCII as allowed for unlatch
+              bs = 1;
+              bl = t;
+              b = e;
+            }
+      if (p + 1 < l && s[p + 1] >= 32 && s[p + 1] <= 94) {
+        // can encode 2
+        if (p + 2 == l && (!bl || bl < 2)) {
+          bl = 3;
+          bs = 2;
+        } else
+            for (e = 0; e < E_MAX; e++)
+              if (e != E_EDIFACT && enc[p + 2][e].t && ((t = 3 + enc[p + 2][e].t + switchcost[E_ASCII][e]) < bl || !bl)) {
+                // E_ASCII as allowed for unlatch
+                bs = 2;
+                bl = t;
+                b = e;
+              }
+        if (p + 2 < l && s[p + 2] >= 32 && s[p + 2] <= 94) {
+          // can encode 3
+          if (p + 3 == l && (!bl || bl < 3)) {
+            bl = 3;
+            bs = 3;
+          } else
+              for (e = 0; e < E_MAX; e++)
+                if (e != E_EDIFACT && enc[p + 3][e].t && ((t = 3 + enc[p + 3][e].t + switchcost[E_ASCII][e]) < bl || !bl)) {
+                  // E_ASCII as allowed for unlatch
+                  bs = 3;
+                  bl = t;
+                  b = e;
+                }
+          if (p + 4 < l && s[p + 3] >= 32 && s[p + 3] <= 94) {
+            // can encode 4
+            if (p + 4 == l && (!bl || bl < 3)) {
+              bl = 3;
+              bs = 4;
+            } else {
+                for (e = 0; e < E_MAX; e++)
+                  if (enc[p + 4][e].t && ((t = 3 + enc[p + 4][e].t + switchcost[E_EDIFACT][e]) < bl || !bl)) {
+                    bs = 4;
+                    bl = t;
+                    b = e;
+                  }
+                if (exact && enc[p + 4][E_ASCII].t && enc[p + 4][E_ASCII].t <= 2 && (t = 3 + enc[p + 4][E_ASCII].t) < bl) {
+                  // special case, switch to ASCII for last 1 ot two bytes
+                  bs = 4;
+                  bl = t;
+                  b = E_ASCII;
+                }
+            }
+          }
+        }
+      }
+      enc[p][E_EDIFACT].t = bl;
+      enc[p][E_EDIFACT].s = bs;
+      if (bl && b == E_EDIFACT)
+        enc[p][b].s += enc[p + bs][b].s;
+    }
+    // Binary
+    bl = 0;
+    for (e = 0; e < E_MAX; e++)
+      if (enc[p + 1][e].t && ((t = enc[p + 1][e].t + switchcost[E_BINARY][e] + ((e == E_BINARY && enc[p + 1][e].t == 249) ? 1 : 0)) < bl || !bl)) {
+        bl = t;
+        b = e;
+      }
+    enc[p][E_BINARY].t = 1 + bl;
+    enc[p][E_BINARY].s = 1;
+    if (bl && b == E_BINARY)
+      enc[p][b].s += enc[p + 1][b].s;
+  }
+  encoding = malloc(sizeof(char)*(l + 1));
+  p = 0;
+  {
+    unsigned char cur = E_ASCII;       // starts ASCII
+    while (p < l) {
+      int t, m = 0;
+      unsigned char b = 0;
+      for (e = 0; e < E_MAX; e++)
+        if (enc[p][e].t && ((t = enc[p][e].t + switchcost[cur][e]) < m || t == m && e == cur || !m)) {
+          b = e;
+          m = t;
+        }
+      cur = b;
+      m = enc[p][b].s;
+      if (!p && lenp)
+        *lenp = enc[p][b].t;
+      while (p < l && m--)
+        encoding[p++] = encchr[b];
+    }
+  }
+  encoding[p] = 0;
+  return encoding;
 }
 
-void iec16022init(int *Wptr, int *Hptr, const char *barcode)
-{
-  if(Wptr == NULL || Hptr == NULL || barcode == NULL) return;
-  
+void iec16022init(int *Wptr, int *Hptr, const char *barcode) {
+  if(Wptr == NULL || Hptr == NULL || barcode == NULL)
+    return;
+
   int barcodelen = (int)strlen(barcode) + 1;
   struct ecc200matrix_s *matrix;
   for (matrix = ecc200matrix; matrix->bytes < barcodelen; matrix++);
   *Wptr = matrix->W;
-  *Hptr = matrix->H;  
+  *Hptr = matrix->H;
 }
 
 // Main encoding function
@@ -743,151 +714,134 @@ void iec16022init(int *Wptr, int *Hptr, const char *barcode)
 // If maxp not null, then the max storage of this size code is stored
 // If eccp not null, then the number of ecc bytes used in this size is stored
 // Returns 0 on error (writes to stderr with details).
-unsigned char *
-iec16022ecc200 (int *Wptr, int *Hptr, char **encodingptr, const int barcodelen, const unsigned char *barcode, int *lenp, int *maxp, int *eccp)
-{
+unsigned char* iec16022ecc200(int *Wptr, int *Hptr, char **encodingptr, const int barcodelen, const unsigned char *barcode, int *lenp, int *maxp, int *eccp) {
   // GS
   // max semacode size is 3116 (from iec16022ecc200.h)
   // we over compensate and check that the input is within this length
   // to avoid any buffer overflow conditions.
-   unsigned char binary[4096];  // encoded raw data and ecc to place in barcode
-   int W = 0,
-      H = 0;
-   char *encoding = 0;
-   unsigned char *grid = 0;
-   struct ecc200matrix_s *matrix;
-   
-   // GS
-   // using the length from the 144x144 semacode in the matrix
-   // I don't trust the 3116 maximum length value ... and
-   // besides how many characters do you really need in a
-   // semacode?
-   
-   if(barcodelen > 1556) {
-     //TODO: rb_raise(rb_eRangeError,  "barcode is too long (> 1556 chars)");
-     return NULL;
-   }
-   
-   memset (binary, 0, sizeof (binary));
-   if (encodingptr)
-      encoding = *encodingptr;
-   if (Wptr)
-      W = *Wptr;
-   if (Hptr)
-      H = *Hptr;
+  unsigned char binary[4096];  // encoded raw data and ecc to place in barcode
+  int W = 0, H = 0;
+  char *encoding = 0;
+  unsigned char *grid = 0;
+  struct ecc200matrix_s *matrix;
 
-   // encoding
-   if (W)
-   {                            // known size
-      for (matrix = ecc200matrix; matrix->W && (matrix->W != W || matrix->H != H); matrix++);
-      if (!matrix->W)
-      {
-         //TODO: rb_raise(rb_eRangeError,  "invalid size for barcode");
-         return 0;
-      }
-      if (!encoding)
-      {
-         int len;
-         char *e = encmake (barcodelen, barcode, &len, 1);
-         if (e && len != matrix->bytes)
-         {                      // try not an exact fit
-            free (e);
-            e = encmake (barcodelen, barcode, &len, 0);
-            if (len > matrix->bytes)
-            {
-               free(e);
-               //TODO: rb_raise(rb_eRangeError,  "cannot make barcode fit");
-               return 0;
-            }
-         }
-         encoding = e;
-      }
-   } else
-   {                            // find size
-      if (encoding)
-      {                         // find one that fits chosen encoding
-         for (matrix = ecc200matrix; matrix->W; matrix++)
-            if (ecc200encode (binary, matrix->bytes, barcode, barcodelen, encoding, 0))
-               break;
-      } else
-      {
-         int len;
-         char *e;
-         e = encmake (barcodelen, barcode, &len, 1);
-         for (matrix = ecc200matrix; matrix->W && matrix->bytes != len; matrix++);
-         if (e && !matrix->W)
-         {                      // try for non exact fit
-            free (e);
-            e = encmake (barcodelen, barcode, &len, 0);
-            for (matrix = ecc200matrix; matrix->W && matrix->bytes < len; matrix++);
-         }
-         encoding = e;
-      }
-      if (!matrix->W)
-      {
-         free(encoding);
-         //TODO: rb_raise(rb_eRangeError,  "overlong barcode");
-         return 0;
-      }
-      W = matrix->W;
-      H = matrix->H;
-   }
-   if (!ecc200encode (binary, matrix->bytes, barcode, barcodelen, encoding, lenp))
-   {
-      free(encoding);
-      //TODO: rb_raise(rb_eRangeError,  "barcode too long for expected encoding");
+  // GS
+  // using the length from the 144x144 semacode in the matrix
+  // I don't trust the 3116 maximum length value ... and
+  // besides how many characters do you really need in a
+  // semacode?
+  if(barcodelen > 1556) {
+    //TODO: rb_raise(rb_eRangeError,  "barcode is too long (> 1556 chars)");
+    return NULL;
+  }
+
+  memset(binary, 0, sizeof(binary));
+  if (encodingptr)
+    encoding = *encodingptr;
+  if (Wptr)
+    W = *Wptr;
+  if (Hptr)
+    H = *Hptr;
+
+  // encoding
+  if (W) {
+    // known size
+    for (matrix = ecc200matrix; matrix->W && (matrix->W != W || matrix->H != H); matrix++);
+    if (!matrix->W) {
+      //TODO: rb_raise(rb_eRangeError,  "invalid size for barcode");
       return 0;
-   }
-   // ecc code
-   ecc200 (binary, matrix->bytes, matrix->datablock, matrix->rsblock);
-   {                            // placement
-      int x,
-        y,
-        NC,
-        NR,
-       *places;
-      NC = W - 2 * (W / matrix->FW);
-      NR = H - 2 * (H / matrix->FH);
-      places = malloc(sizeof(int) * NC * NR);
-      ecc200placement (places, NR, NC);
-      grid = malloc(sizeof(char) * W * H);
-      memset (grid, 0, W * H);
-      for (y = 0; y < H; y += matrix->FH)
-      {
-         for (x = 0; x < W; x++)
-            grid[y * W + x] = 1;
-         for (x = 0; x < W; x += 2)
-            grid[(y + matrix->FH - 1) * W + x] = 1;
+    }
+    if (!encoding) {
+      int len;
+      char *e = encmake(barcodelen, barcode, &len, 1);
+      if (e && len != matrix->bytes) {
+        // try not an exact fit
+        free (e);
+        e = encmake (barcodelen, barcode, &len, 0);
+        if (len > matrix->bytes) {
+          free(e);
+          //TODO: rb_raise(rb_eRangeError,  "cannot make barcode fit");
+          return 0;
+        }
       }
-      for (x = 0; x < W; x += matrix->FW)
-      {
-         for (y = 0; y < H; y++)
-            grid[y * W + x] = 1;
-         for (y = 0; y < H; y += 2)
-            grid[y * W + x + matrix->FW - 1] = 1;
+      encoding = e;
+    }
+  } else {
+    // find size
+    if (encoding) {
+      // find one that fits chosen encoding
+      for (matrix = ecc200matrix; matrix->W; matrix++)
+        if (ecc200encode(binary, matrix->bytes, barcode, barcodelen, encoding, 0))
+          break;
+    } else {
+      int len;
+      char *e;
+      e = encmake(barcodelen, barcode, &len, 1);
+      for (matrix = ecc200matrix; matrix->W && matrix->bytes != len; matrix++);
+      if (e && !matrix->W) {
+        // try for non exact fit
+        free (e);
+        e = encmake(barcodelen, barcode, &len, 0);
+        for (matrix = ecc200matrix; matrix->W && matrix->bytes < len; matrix++);
       }
-      for (y = 0; y < NR; y++)
-      {
-         for (x = 0; x < NC; x++)
-         {
-            int v = places[(NR - y - 1) * NC + x];
-            if (v == 1 || v > 7 && (binary[(v >> 3) - 1] & (1 << (v & 7))))
-               grid[(1 + y + 2 * (y / (matrix->FH - 2))) * W + 1 + x + 2 * (x / (matrix->FW - 2))] = 1;
-         }
+      encoding = e;
+    }
+    if (!matrix->W) {
+      free(encoding);
+      //TODO: rb_raise(rb_eRangeError,  "overlong barcode");
+      return 0;
+    }
+    W = matrix->W;
+    H = matrix->H;
+  }
+  if (!ecc200encode(binary, matrix->bytes, barcode, barcodelen, encoding, lenp)) {
+    free(encoding);
+    //TODO: rb_raise(rb_eRangeError,  "barcode too long for expected encoding");
+    return 0;
+  }
+  // ecc code
+  ecc200(binary, matrix->bytes, matrix->datablock, matrix->rsblock);
+  {
+    // placement
+    int x, y, NC, NR, *places;
+    NC = W - 2 * (W / matrix->FW);
+    NR = H - 2 * (H / matrix->FH);
+    places = malloc(sizeof(int) * NC * NR);
+    ecc200placement(places, NR, NC);
+    grid = malloc(sizeof(char) * W * H);
+    memset (grid, 0, W * H);
+    for (y = 0; y < H; y += matrix->FH) {
+      for (x = 0; x < W; x++)
+        grid[y * W + x] = 1;
+      for (x = 0; x < W; x += 2)
+        grid[(y + matrix->FH - 1) * W + x] = 1;
+    }
+    for (x = 0; x < W; x += matrix->FW) {
+      for (y = 0; y < H; y++)
+        grid[y * W + x] = 1;
+      for (y = 0; y < H; y += 2)
+        grid[y * W + x + matrix->FW - 1] = 1;
+    }
+    for (y = 0; y < NR; y++) {
+      for (x = 0; x < NC; x++) {
+        int v = places[(NR - y - 1) * NC + x];
+        if (v == 1 || v > 7 && (binary[(v >> 3) - 1] & (1 << (v & 7))))
+          grid[(1 + y + 2 * (y / (matrix->FH - 2))) * W + 1 + x + 2 * (x / (matrix->FW - 2))] = 1;
       }
-      free (places);
-   }
-   if (Wptr)
-      *Wptr = W;
-   if (Hptr)
-      *Hptr = H;
-   if (encodingptr)
-      *encodingptr = encoding;
-   else
-      free(encoding); // get rid of this if we aren't returning it
-   if (maxp)
-      *maxp = matrix->bytes;
-   if (eccp)
-      *eccp = (matrix->bytes + 2) / matrix->datablock * matrix->rsblock;
-   return grid;
+    }
+    free (places);
+  }
+  if (Wptr)
+    *Wptr = W;
+  if (Hptr)
+    *Hptr = H;
+  if (encodingptr)
+    *encodingptr = encoding;
+  else
+    free(encoding); // get rid of this if we aren't returning it
+  if (maxp)
+    *maxp = matrix->bytes;
+  if (eccp)
+    *eccp = (matrix->bytes + 2) / matrix->datablock * matrix->rsblock;
+  return grid;
 }
