@@ -2,10 +2,14 @@
 
 VALUE rb_mDataMatrix, rb_cEncoder;
 
-semacode_t* encode_string(semacode_t* semacode, char *message) {
+semacode_t* encode_string(semacode_t* semacode, const char *message) {
+  char* fixed_message;
+
   if (semacode == NULL || message == NULL || strlen(message) < 1) {
     return NULL;
   }
+
+  fixed_message = malloc(sizeof(char) * strlen(message) + 1);
 
   if (semacode->data != NULL) {
     free(semacode->data);
@@ -15,25 +19,30 @@ semacode_t* encode_string(semacode_t* semacode, char *message) {
   }
 
   bzero(semacode, sizeof(semacode_t));
-  strcat(message, " ");
+  fixed_message = strdup(message);
+  strcat(fixed_message, " ");
 
-  iec16022init(&semacode->width, &semacode->height, message);
+  iec16022init(&semacode->width, &semacode->height, fixed_message);
 
-  semacode->data = (char *) iec16022ecc200(
-    &semacode->width,
-    &semacode->height,
-    &semacode->encoding,
-    (int) strlen(message),
-    (unsigned char *) message,
-    &semacode->raw_encoded_length,
-    &semacode->symbol_capacity,
-    &semacode->ecc_bytes
-  );
+  semacode->data = (char *) iec16022ecc200(&semacode->width, &semacode->height, &semacode->encoding,
+                                           (int) strlen(fixed_message), (unsigned char *) fixed_message,
+                                           &semacode->raw_encoded_length, &semacode->symbol_capacity,
+                                           &semacode->ecc_bytes);
+
+  free(fixed_message);
 
   return semacode;
 }
 
-static void data_matrix_mark(semacode_t* semacode) {}
+static void data_matrix_mark(semacode_t* semacode) {
+  semacode->width = 0;
+  semacode->height = 0;
+  semacode->raw_encoded_length = 0;
+  semacode->symbol_capacity = 0;
+  semacode->ecc_bytes = 0;
+  semacode->encoding = NULL;
+  semacode->data = NULL;
+}
 
 static void data_matrix_free(semacode_t* semacode) {
   if (semacode != NULL) {
@@ -74,12 +83,8 @@ static VALUE data_matrix_allocate(VALUE klass) {
 
 static VALUE data_matrix_init(VALUE self, VALUE message) {
   semacode_t *semacode;
-
-  // Check if passed argument is convertable to string
-  if (!rb_respond_to(message, rb_intern("to_s")))
-    rb_raise(rb_eRuntimeError, "target must respond to 'to_s'");
-
   Data_Get_Struct(self, semacode_t, semacode);
+
   encode_string(semacode, StringValuePtr(message));
 
   return self;
@@ -188,7 +193,7 @@ void Init_data_matrix(void) {
 
   rb_define_alloc_func(rb_cEncoder, data_matrix_allocate);
 
-  rb_define_method(rb_cEncoder, "initialize", data_matrix_init, 1);
+  rb_define_method(rb_cEncoder, "encode_string", data_matrix_init, 1);
   rb_define_method(rb_cEncoder, "encode", data_matrix_encode, 1);
   rb_define_method(rb_cEncoder, "data", data_matrix_data, 0);
   rb_define_method(rb_cEncoder, "encoding", data_matrix_encoded, 0);

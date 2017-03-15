@@ -14,7 +14,7 @@ typedef struct semacode_t {
   char *data;
 } semacode_t;
 
-semacode_t* encode_string(semacode_t* semacode, char *message);
+semacode_t* encode_string(semacode_t* semacode, const char *message);
 static void data_matrix_mark(semacode_t* semacode);
 static void data_matrix_free(semacode_t* semacode);
 

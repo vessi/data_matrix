@@ -29,7 +29,7 @@
 #define IEC16022ECC200_ERROR_DID_NOT_FIT -5
 #define IEC16022ECC200_BARCODE_TOO_LONG -6
 
-unsigned char* iec16022ecc200(int *Wptr, int *Hptr, char **encodingptr, int barcodelen, unsigned char *barcode,
+unsigned char* iec16022ecc200(int *Wptr, int *Hptr, char **encodingptr, const int barcodelen, const unsigned char *barcode,
                               int *lenp,int *maxp,int *eccp);
 void iec16022init(int *Wptr, int *Hptr, const char *barcode);
 
