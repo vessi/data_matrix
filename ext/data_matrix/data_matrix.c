@@ -18,7 +18,6 @@ semacode_t* encode_string(semacode_t* semacode, const char *message) {
     free(semacode->encoding);
   }
 
-  bzero(semacode, sizeof(semacode_t));
   fixed_message = strdup(message);
   strcat(fixed_message, " ");
 
@@ -35,13 +34,7 @@ semacode_t* encode_string(semacode_t* semacode, const char *message) {
 }
 
 static void data_matrix_mark(semacode_t* semacode) {
-  semacode->width = 0;
-  semacode->height = 0;
-  semacode->raw_encoded_length = 0;
-  semacode->symbol_capacity = 0;
-  semacode->ecc_bytes = 0;
-  semacode->encoding = NULL;
-  semacode->data = NULL;
+  bzero(semacode, sizeof(semacode_t));
 }
 
 static void data_matrix_free(semacode_t* semacode) {
@@ -50,7 +43,6 @@ static void data_matrix_free(semacode_t* semacode) {
       free(semacode->encoding);
       free(semacode->data);
     }
-    bzero(semacode, sizeof(semacode));
     free(semacode);
   }
 }
@@ -77,12 +69,17 @@ static VALUE data_matrix_grid(semacode_t *semacode) {
 }
 
 static VALUE data_matrix_allocate(VALUE klass) {
-  semacode_t *semacode;
-  return Data_Make_Struct(klass, semacode_t, data_matrix_mark, data_matrix_free, semacode);
+  semacode_t *semacode = malloc(sizeof(semacode_t));
+  bzero(semacode, sizeof(semacode_t));
+  return Data_Wrap_Struct(klass, data_matrix_mark, data_matrix_free, semacode);
 }
 
 static VALUE data_matrix_init(VALUE self, VALUE message) {
   semacode_t *semacode;
+
+  if (!rb_respond_to(message, rb_intern("to_s")))
+    rb_raise(rb_eArgError, "target must respond to 'to_s'");
+
   Data_Get_Struct(self, semacode_t, semacode);
 
   encode_string(semacode, StringValuePtr(message));
@@ -93,7 +90,7 @@ static VALUE data_matrix_init(VALUE self, VALUE message) {
 static VALUE data_matrix_encode(VALUE self, VALUE encoding) {
   semacode_t *semacode;
 
-  if (!rb_respond_to(encoding, rb_intern ("to_s")))
+  if (!rb_respond_to(encoding, rb_intern("to_s")))
     rb_raise(rb_eRuntimeError, "target must respond to 'to_s'");
 
   Data_Get_Struct(self, semacode_t, semacode);
@@ -193,7 +190,7 @@ void Init_data_matrix(void) {
 
   rb_define_alloc_func(rb_cEncoder, data_matrix_allocate);
 
-  rb_define_method(rb_cEncoder, "encode_string", data_matrix_init, 1);
+  rb_define_method(rb_cEncoder, "initialize", data_matrix_init, 1);
   rb_define_method(rb_cEncoder, "encode", data_matrix_encode, 1);
   rb_define_method(rb_cEncoder, "data", data_matrix_data, 0);
   rb_define_method(rb_cEncoder, "encoding", data_matrix_encoded, 0);

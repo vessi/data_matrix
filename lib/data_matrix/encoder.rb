@@ -6,9 +6,10 @@ module DataMatrix
     alias to_str to_s
     alias to_a data
 
-    def initialize(value)
-      raise ArgumentError, 'Value must be convertible to string' unless value.respond_to?(:to_s)
-      encode_string(value.to_s)
+    class << self
+      def encode_string(value)
+        new(value)
+      end
     end
 
     def length
